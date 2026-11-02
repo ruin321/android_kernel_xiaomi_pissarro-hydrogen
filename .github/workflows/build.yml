@@ -1,0 +1,62 @@
+name: Build Hydrogen Kernel (KSU)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - build/ksu-fix
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 1
+
+      - name: Init KernelSU submodule
+        run: |
+          git submodule update --init KernelSU
+          git -C KernelSU log -1 --oneline
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex git libelf-dev libssl-dev \
+            perl python3 zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Restore AOSP clang cache
+        id: clang-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/toolchains/clang-r563880c
+          key: aosp-clang-r563880c-v1
+
+      - name: Download AOSP clang
+        if: steps.clang-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$HOME/toolchains/clang-r563880c"
+          curl -L --fail --retry 3 --retry-delay 5 \
+            -o /tmp/clang-r563880c.tar.gz \
+            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android-16.0.0_r4/clang-r563880c.tar.gz"
+          tar -xzf /tmp/clang-r563880c.tar.gz -C "$HOME/toolchains/clang-r563880c"
+          "$HOME/toolchains/clang-r563880c/bin/clang" --version
+
+      - name: Build KSU kernel
+        run: |
+          ./build.sh -v ksu
+
+      - name: Upload flashable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: HydrogenKernel-ksu
+          path: HydrogenKernel-*.zip
+          if-no-files-found: error
