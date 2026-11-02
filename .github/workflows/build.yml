@@ -10,29 +10,11 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  toolchain:
     runs-on: ubuntu-22.04
-    timeout-minutes: 180
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-        with:
-          submodules: false
-          fetch-depth: 1
-
-      - name: Init KernelSU submodule
-        run: |
-          git submodule update --init KernelSU
-          git -C KernelSU log -1 --oneline
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential ccache curl flex git libelf-dev libssl-dev \
-            perl python3 zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
-
       - name: Restore AOSP clang cache
         id: clang-cache
         uses: actions/cache@v4
@@ -67,6 +49,43 @@ jobs:
             cp -a "$HOME/toolchains/.clang-src/clang-r563880c/." "$HOME/toolchains/clang-r563880c/"
             rm -rf "$HOME/toolchains/.clang-src"
           fi
+          "$HOME/toolchains/clang-r563880c/bin/clang" --version
+
+  build:
+    needs: toolchain
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 1
+
+      - name: Init root solution submodules
+        run: |
+          git submodule update --init KernelSU KernelSU-Next ReSukiSU
+          git -C KernelSU log -1 --oneline
+          git -C KernelSU-Next log -1 --oneline
+          git -C ReSukiSU log -1 --oneline
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ccache curl flex git libelf-dev libssl-dev \
+            perl python3 zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Restore AOSP clang cache
+        uses: actions/cache@v4
+        with:
+          path: ~/toolchains/clang-r563880c
+          key: aosp-clang-r563880c-v1
+
+      - name: Verify AOSP clang
+        run: |
+          test -x "$HOME/toolchains/clang-r563880c/bin/clang"
           "$HOME/toolchains/clang-r563880c/bin/clang" --version
 
       - name: Build KSU kernel
