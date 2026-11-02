@@ -43,11 +43,30 @@ jobs:
       - name: Download AOSP clang
         if: steps.clang-cache.outputs.cache-hit != 'true'
         run: |
-          mkdir -p "$HOME/toolchains/clang-r563880c"
-          curl -L --fail --retry 3 --retry-delay 5 \
-            -o /tmp/clang-r563880c.tar.gz \
-            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android-16.0.0_r4/clang-r563880c.tar.gz"
-          tar -xzf /tmp/clang-r563880c.tar.gz -C "$HOME/toolchains/clang-r563880c"
+          set -euxo pipefail
+          mkdir -p "$HOME/toolchains"
+          ok=0
+          for ref in refs/tags/android-16.0.0_r4 refs/heads/android-16.0.0_r4 refs/heads/android16-release; do
+            if curl -L --fail --retry 2 --retry-delay 3 \
+                 -o /tmp/clang-r563880c.tar.gz \
+                 "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/$ref/clang-r563880c.tar.gz"; then
+              mkdir -p "$HOME/toolchains/clang-r563880c"
+              tar -xzf /tmp/clang-r563880c.tar.gz -C "$HOME/toolchains/clang-r563880c"
+              ok=1
+              break
+            fi
+          done
+          if [ "$ok" != 1 ]; then
+            rm -rf "$HOME/toolchains/.clang-src"
+            git clone --depth=1 --filter=blob:none --sparse \
+              --branch=android-16.0.0_r4 \
+              https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
+              "$HOME/toolchains/.clang-src"
+            git -C "$HOME/toolchains/.clang-src" sparse-checkout set clang-r563880c
+            mkdir -p "$HOME/toolchains/clang-r563880c"
+            cp -a "$HOME/toolchains/.clang-src/clang-r563880c/." "$HOME/toolchains/clang-r563880c/"
+            rm -rf "$HOME/toolchains/.clang-src"
+          fi
           "$HOME/toolchains/clang-r563880c/bin/clang" --version
 
       - name: Build KSU kernel
