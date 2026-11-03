@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+﻿// SPDX-License-Identifier: GPL-2.0
 /*
  * fs/proc_namespace.c - handling of /proc/<pid>/{mounts,mountinfo,mountstats}
  *
@@ -12,13 +12,17 @@
 #include <linux/security.h>
 #include <linux/fs_struct.h>
 #include <linux/sched/task.h>
-#include <linux/string.h>
-#include <linux/dcache.h>
 
 #include "proc/internal.h" /* only for get_proc_task() in ->open() */
 
 #include "pnode.h"
 #include "internal.h"
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+#include <linux/susfs_def.h>
+extern struct static_key_false susfs_is_hide_sus_mnts_for_non_su_procs_enabled;
+extern bool susfs_is_current_ksu_domain(void);
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 static unsigned mounts_poll(struct file *file, poll_table *wait)
 {
@@ -103,16 +107,13 @@ static int show_vfsmnt(struct seq_file *m, struct vfsmount *mnt)
 	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
 	struct super_block *sb = mnt_path.dentry->d_sb;
 	int err;
-	const char *dev = r->mnt_devname;
-	char buf[256];
-	char *path;
 
-	/* Hide suspicious dm-* mounts (dex2oat, ksu, etc.) */
-	if (dev && strncmp(dev, "dm-", 3) == 0) {
-		path = __d_path(&mnt_path, &p->root, buf, sizeof(buf));
-		if (path && (strstr(path, "/apex/") || strstr(path, "/data/adb/ksu")))
-			return SEQ_SKIP;
-	}
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (r->mnt_id >= DEFAULT_KSU_MNT_ID &&
+		static_branch_unlikely(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled) &&
+		likely(!susfs_is_current_ksu_domain()))
+		return 0;
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 	if (sb->s_op->show_devname) {
 		err = sb->s_op->show_devname(m, mnt_path.dentry);
@@ -149,6 +150,13 @@ static int show_mountinfo(struct seq_file *m, struct vfsmount *mnt)
 	struct super_block *sb = mnt->mnt_sb;
 	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
 	int err;
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (r->mnt_id >= DEFAULT_KSU_MNT_ID &&
+		static_branch_unlikely(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled) &&
+		likely(!susfs_is_current_ksu_domain()))
+		return 0;
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 	seq_printf(m, "%i %i %u:%u ", r->mnt_id, r->mnt_parent->mnt_id,
 		   MAJOR(sb->s_dev), MINOR(sb->s_dev));
@@ -213,6 +221,13 @@ static int show_vfsstat(struct seq_file *m, struct vfsmount *mnt)
 	struct path mnt_path = { .dentry = mnt->mnt_root, .mnt = mnt };
 	struct super_block *sb = mnt_path.dentry->d_sb;
 	int err;
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+	if (r->mnt_id >= DEFAULT_KSU_MNT_ID &&
+		static_branch_unlikely(&susfs_is_hide_sus_mnts_for_non_su_procs_enabled) &&
+		likely(!susfs_is_current_ksu_domain()))
+		return 0;
+#endif // #ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
 
 	/* device */
 	if (sb->s_op->show_devname) {
