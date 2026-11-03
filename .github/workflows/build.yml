@@ -1,10 +1,10 @@
-name: Build Hydrogen Kernel (KSU)
+name: Build Fephonia Kernel (KSU)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - build/ksu-fix
+      - build/fephonia
 
 permissions:
   contents: read
@@ -95,6 +95,6 @@ jobs:
       - name: Upload flashable zip
         uses: actions/upload-artifact@v4
         with:
-          name: HydrogenKernel-ksu
-          path: HydrogenKernel-*.zip
+          name: FephoniaKernel-ksu
+          path: FephoniaKernel-*.zip
           if-no-files-found: error

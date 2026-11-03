@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Hydrogen Kernel build script
+# Fephonia Kernel build script
 # Brought to you by z3rokwq @ pissarro-development
 #
 
@@ -10,7 +10,7 @@ set -e
 # Function to display help message
 show_help() {
     cat << EOF
-Build script for Hydrogen Kernel
+Build script for Fephonia Kernel
 
 Usage: $0 [OPTIONS] [CODENAME]
 
@@ -32,7 +32,7 @@ EOF
 }
 
 # Initial Setup
-KERNEL_NAME="Hydrogen"
+KERNEL_NAME="Fephonia"
 KERNEL_VERSION="v2.0"
 
 CLEAN_BUILD=false
@@ -173,6 +173,9 @@ if make -j$(nproc --all) \
 
     # Cloning AnyKernel3
     git clone --depth=1 --branch=hydrogen-4.14.y https://github.com/pissarro-development/anykernel3.git anykernel3/
+
+    # Rename the kernel branding inside AnyKernel3
+    sed -i 's/kernel.string=Hydrogen Kernel by z3rokwq @ pissarro-development/kernel.string=Fephonia Kernel by z3rokwq @ pissarro-development/' anykernel3/anykernel.sh
 
     # Copying the prebuilts images
     cp prebuilts/dtbo.img anykernel3/
