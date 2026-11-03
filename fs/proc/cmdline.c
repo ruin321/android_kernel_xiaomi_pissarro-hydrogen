@@ -1,36 +1,26 @@
-// SPDX-License-Identifier: GPL-2.0
+﻿// SPDX-License-Identifier: GPL-2.0
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-#include <linux/string.h>
-#include <linux/slab.h>
+
+#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+extern struct static_key_false susfs_is_fake_cmdline_or_bootconfig_buffer_set;
+extern void susfs_spoof_cmdline_or_bootconfig(struct seq_file *m);
+#endif // #ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
 
 static int cmdline_proc_show(struct seq_file *m, void *v)
 {
-	char *buf, *p, *end;
-
-	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-
-	strscpy(buf, saved_command_line, PAGE_SIZE);
-
-	/* Spoof verified boot state to green */
-	p = strstr(buf, "androidboot.verifiedbootstate=");
-	if (p) {
-		p += strlen("androidboot.verifiedbootstate=");
-		end = p;
-		while (*end && *end != ' ' && *end != '\n')
-			end++;
-		/* overwrite with "green" */
-		memcpy(p, "green", 5);
-		if (end - p > 5)
-			memset(p + 5, 0, end - p - 5);
+#ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+	if (static_branch_likely(&susfs_is_fake_cmdline_or_bootconfig_buffer_set)) {
+		if (saved_command_line) {
+			susfs_spoof_cmdline_or_bootconfig(m);
+			seq_putc(m, '\n');
+			return 0;
+		}
 	}
-
-	seq_printf(m, "%s\n", buf);
-	kfree(buf);
+#endif // #ifdef CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+	seq_printf(m, "%s\n", saved_command_line);
 	return 0;
 }
 
